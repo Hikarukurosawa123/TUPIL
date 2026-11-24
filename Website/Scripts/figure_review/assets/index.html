@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TUPIL Figure Review</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">T</span><h1>TUPIL Figure Review</h1></div>
+    <div class="actions"><a href="/" class="button">Open notebook</a><button id="refresh" class="button" hidden>Refresh</button></div>
+  </header>
+
+  <main>
+    <section id="access" class="access" hidden>
+      <h2>Open the review workspace</h2>
+      <p>Enter the access code from the host.</p>
+      <form id="login">
+        <label for="code">Access code</label>
+        <input id="code" type="password" required>
+        <button class="button primary">Open workspace</button>
+        <p id="login-error" class="error" role="alert"></p>
+      </form>
+    </section>
+
+    <div id="workspace" class="workspace" hidden>
+      <aside class="library" aria-labelledby="library-title">
+        <div class="rail-header">
+          <h2 id="library-title">Figures</h2>
+          <p class="muted">Google Drive / Results_Main</p>
+          <label for="search" class="visually-hidden">Search figures</label>
+          <input id="search" type="search" placeholder="Search figures">
+        </div>
+        <nav id="figures" class="figure-list" aria-label="Figures"></nav>
+      </aside>
+
+      <section class="review" aria-label="Figure workspace">
+        <div id="empty" class="empty">
+          <div class="empty-icon" aria-hidden="true"><span></span></div>
+          <h2 id="empty-title">Loading figures</h2>
+          <p id="empty-message" class="muted"></p>
+        </div>
+        <article id="viewer" hidden>
+          <header class="figure-header">
+            <div><p id="folder" class="muted"></p><h2 id="figure-title"></h2></div>
+            <a id="open-figure" class="button" target="_blank" rel="noopener">Open original</a>
+          </header>
+          <div id="canvas" class="canvas">
+            <div id="surface" class="surface">
+              <div id="media"></div>
+              <div id="pins" class="pins"></div>
+            </div>
+          </div>
+        </article>
+        <p id="status" class="status" role="status"></p>
+      </section>
+
+      <aside class="notes" aria-labelledby="notes-title">
+        <div class="rail-header notes-header">
+          <h2 id="notes-title">Notes</h2>
+          <button id="add-note" class="button primary" disabled>Add note</button>
+        </div>
+        <p id="note-help" class="muted note-help">Select a figure to add notes.</p>
+        <form id="note-form" class="note-form" hidden>
+          <label for="note-text">Note text</label>
+          <textarea id="note-text" maxlength="2000" rows="4" required></textarea>
+          <div class="actions"><button class="button primary">Save note</button><button id="cancel" type="button" class="button">Cancel</button></div>
+        </form>
+        <ol id="note-list" class="note-list"></ol>
+      </aside>
+    </div>
+    <noscript><p class="status">Enable JavaScript to use the figure viewer.</p></noscript>
+  </main>
+</body>
+</html>

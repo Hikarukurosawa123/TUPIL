@@ -1,0 +1,6 @@
+# Raw POCUS data
+/POCUS_by_ScanID/
+/Results_Main/
+/Results_Rough/
+# CSV files
+*.csv

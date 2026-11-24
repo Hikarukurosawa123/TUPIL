@@ -5,6 +5,7 @@
 | `qus_maps.py` | QUS parametric maps (MBF, SS, SI, Gaussian ESD/EAC) from Clarius RF data, with reference-phantom normalisation. |
 | `hscan_maps.py` | H-scan maps of the kidney ROI. Self-contained: its helper modules are embedded in the file. |
 | `radiomics_template.py` | Radiomics template: maps + masks → PyRadiomics features → cross-validated AUC. |
+| `common/save_figure.py` | Saves `Results_Main` figures to the shared Google Drive when under 10 MB each and 5 GB total; otherwise keeps them in the repo's `Results_Main/` with a warning. |
 | `SMH_LF_BSC.txt` | Reference-phantom backscatter coefficient table that `qus_maps.py` reads. |
 
 Requirements: `python -m pip install -r requirements.txt` from the repo root

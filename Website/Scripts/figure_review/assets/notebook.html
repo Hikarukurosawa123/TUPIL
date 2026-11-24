@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TUPIL Research Workspace</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/notebook.css">
+  <script type="module" src="/notebook.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">T</span><h1>TUPIL Research Workspace</h1></div>
+    <a class="button" href="/annotations">Figure annotations</a>
+  </header>
+  <main>
+    <section id="access" class="access" hidden>
+      <h2>Open the research workspace</h2>
+      <p>Enter the access code from the host.</p>
+      <form id="login">
+        <label for="code">Access code</label><input id="code" type="password" required>
+        <button class="button primary">Open workspace</button>
+        <p id="login-error" class="error" role="alert"></p>
+      </form>
+    </section>
+    <div id="workspace" class="notebook-workspace" hidden>
+      <nav class="pages" aria-label="Research pages">
+        <details open>
+          <summary>Results</summary>
+          <button class="page-link" data-page="results-1">Results 1</button>
+          <button class="page-link" data-page="results-2">Results 2</button>
+        </details>
+        <details open>
+          <summary>Research Notebook</summary>
+          <button class="page-link" data-page="project-1">Project 1</button>
+          <button class="page-link" data-page="project-2">Project 2</button>
+        </details>
+      </nav>
+      <section class="document-area" aria-labelledby="page-title">
+        <div class="document-toolbar">
+          <div><p id="page-group" class="muted"></p><h2 id="page-title">Loading page</h2></div>
+          <div class="actions"><button id="preview" class="button" aria-pressed="false" disabled>Preview Markdown</button><button id="save" class="button primary" disabled>Save</button></div>
+        </div>
+        <div class="document-feedback"><p id="save-status" class="muted" role="status"></p><button id="reload" class="button" hidden>Reload page</button></div>
+        <article class="paper" id="paper" aria-label="Document"></article>
+        <details class="markdown-help">
+          <summary>Markdown examples</summary>
+          <p><code># Heading</code>, <code>**bold**</code>, <code>*italic*</code>, <code>- List item</code>, <code> &gt; Quote</code>, <code>`code`</code>, <code>[Link](https://example.com)</code></p>
+        </details>
+      </section>
+      <aside class="drive-library" aria-labelledby="library-title">
+        <div class="library-heading"><h2 id="library-title">Drive figures</h2><button id="refresh" class="button">Refresh</button></div>
+        <p class="muted">Google Drive / Results_Main</p>
+        <label class="visually-hidden" for="search">Search Drive figures</label><input id="search" type="search" placeholder="Search figures">
+        <p class="muted library-help">Drag a figure onto a drop line, or click Insert.</p>
+        <div id="figures" class="drive-list"></div>
+      </aside>
+    </div>
+    <noscript><p class="status">Enable JavaScript to use the notebook.</p></noscript>
+  </main>
+</body>
+</html>

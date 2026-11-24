@@ -1,0 +1,13 @@
+# Python dependencies for Scripts/ (tested with Python 3.13.5)
+# Install: python -m pip install -r requirements.txt
+
+numpy==2.3.4
+scipy==1.16.3
+pandas==2.3.3
+h5py==3.15.1            # qus_maps.py output
+PyYAML==6.0.3           # Clarius .yml metadata
+matplotlib==3.10.7      # hscan_maps.py figures
+scikit-learn==1.9.0     # radiomics_template.py models
+SimpleITK==2.5.5        # radiomics_template.py
+# The PyPI release lags; this is the GitHub commit the scripts were tested with.
+pyradiomics @ git+https://github.com/AIM-Harvard/pyradiomics.git@8ed579383b44806651c463d5e691f3b2b57522ab

@@ -249,12 +249,10 @@ def section03():
     pd.DataFrame(st_rows).to_csv(O3 / "egfr_best_model_stats.csv", index=False)
     print(pd.DataFrame(st_rows)[["variant", "C-index", "Welch ANOVA p"]].round(4).to_string(index=False))
 
-    # same model refit with 3 ordinal groups (-5 to -3 and < -5 combined): addon_acr/run_hscan_esd_ss_top1_ordinal3.py
-    x3 = d / "addon_acr" / "hscan_esd_ss_top1_ordinal3_results.xlsx"
-    H3 = pd.read_excel(x3, sheet_name="Heldout_scores")
-    assert len(H3) == 91 and (H3.patient_id.values == H.patient_id.values).all()
+    # same 4-group model and held-out scores, regrouped into 3 groups (-5 to -3 and < -5 combined); no refit
+    H3 = H.copy()
+    H3["true_class"] = np.minimum(H3.true_class.to_numpy(int), 2)
     H3.to_csv(O3 / "egfr_best_model_ordinal3_heldout_scores.csv", index=False, encoding="utf-8-sig")
-    M3 = pd.read_excel(x3, sheet_name="Metrics_with_CI")
     y3 = H3.true_class.to_numpy(int)
     st_rows, pr = [], []
     for v in ["Radiomics only", "Radiomics + ACR"]:
@@ -262,14 +260,13 @@ def section03():
         overall, pairs = group_tests([x[y3 == k] for k in range(3)], SLOPE3, adjust=False)
         pairs.insert(0, "variant", v); pr.append(pairs)
         rho, prho = stats.spearmanr(x, H3.slope)
-        met = M3[M3.variant == v].set_index("metric")
-        st_rows.append({"variant": v, "n": len(x), "C-index": c_index(y3, x),
-                        **{f"{k}": met.loc[k, "value"] for k in ["AUC < -1", "AUC < -3", "AUC < -5"]},
+        st_rows.append({"variant": v, "n": len(x), "C-index (3 groups)": c_index(y3, x),
+                        **{f"AUC < {c}": c_index((H3.slope < c).astype(int).to_numpy(), x) for c in (-1, -3, -5)},
                         "Spearman rho vs slope": rho, "Spearman p": prho, **overall})
-        assert abs(st_rows[-1]["C-index"] - met.loc["C-index", "value"]) < 1e-9
     pd.concat(pr).to_csv(O3 / "egfr_best_model_ordinal3_pairwise.csv", index=False, encoding="utf-8-sig")
     pd.DataFrame(st_rows).to_csv(O3 / "egfr_best_model_ordinal3_stats.csv", index=False, encoding="utf-8-sig")
-    print(pd.DataFrame(st_rows)[["variant", "C-index", "Welch ANOVA p"]].round(4).to_string(index=False))
+    print(pd.DataFrame(st_rows)[["variant", "C-index (3 groups)", "AUC < -1", "AUC < -3", "AUC < -5",
+                                 "Welch ANOVA p"]].round(4).to_string(index=False))
 
     # baseline clinical markers by slope group
     C = pd.read_csv(RR / "01_eGFR_slope_model3_min1yr" / "Heat_map" / "model_cv" / "clinical_addon" /

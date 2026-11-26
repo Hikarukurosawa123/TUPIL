@@ -31,6 +31,7 @@ gridHeatmap(T, ["c_index", "auc_lt1"], {'C-index', ['AUC < ' mi '1']}, ...
 gridHeatmap(T, ["auc_lt3", "auc_lt5"], {['AUC < ' mi '3'], ['AUC < ' mi '5']}, ...
     repmat([0.25 0.75], 2, 1), 'diverging', fullfile(D, 'egfr_all_combinations_heatmap_auc3_auc5'), S);
 egfrBestBox(D, S);
+egfrBestBox(D, S, 'egfr_best_model_ordinal3', slopeLabels3());
 for g = ["ordinal4", "binary_lt1", "binary_lt3", "binary_lt5"]
     clinicalBox(D, g, S);
 end
@@ -161,28 +162,31 @@ t = ceil(lm(1) / s - 1e-9) * s : s : lm(2) + 1e-9;
 end
 
 % =====================================================================================================  03 boxes
-function egfrBestBox(D, S)
-H = rd(fullfile(D, 'egfr_best_model_heldout_scores.csv'));
-P = rd(fullfile(D, 'egfr_best_model_pairwise.csv'));
+function egfrBestBox(D, S, prefix, labels)
+% prefix: 'egfr_best_model' (4 ordinal groups) or 'egfr_best_model_ordinal3' (-5 to -3 and < -5 combined)
+if nargin < 3, prefix = 'egfr_best_model'; labels = slopeLabels4(); end
+H = rd(fullfile(D, [prefix '_heldout_scores.csv']));
+P = rd(fullfile(D, [prefix '_pairwise.csv']));
 vars = ["Radiomics only", "Radiomics + ACR"]; heads = {'Radiomics', 'Radiomics + ACR'};
 mi = char(8722);
-labels = slopeLabels4();
+K = numel(labels);
 cols = [S.c.ci; S.c.navy];
+if K == 3, cols = cols([1 2 4], :); end           % < -3 keeps the darkest (fastest-decline) colour
 y = H.true_class; yl0 = -3; y0 = 5.9; step = 1.0;
 nSig = max(arrayfun(@(v) sum(P.variant == v & P.p < 0.05), vars));
 yMax = max(6.0, y0 + nSig * step + 0.45);
 fig = tupilFigure(13.2, 6.9);
 for v = 1:2
     x = H.("score_" + vars(v));
-    groups = arrayfun(@(k) x(y == k), 0:3, 'UniformOutput', false);
+    groups = arrayfun(@(k) x(y == k), 0:K - 1, 'UniformOutput', false);
     ns = cellfun(@numel, groups);
     ax = axes(fig, 'Units', 'centimeters', 'Position', [1.35 + (v - 1) * 6.3 1.75 5.4 4.2]);
     tupilAxes(ax);
     tupilBoxScatter(ax, groups, cols);
     q = P(P.variant == vars(v), :);
     tupilSigBrackets(ax, [q.("pos A") q.("pos B")], q.p, y0, step);
-    ylim(ax, [yl0 yMax]); xlim(ax, [0.4 4.6]); ax.YTick = -2:2:6;
-    for k = 1:4                                  % off-scale points: triangle at the axis edge + value
+    ylim(ax, [yl0 yMax]); xlim(ax, [0.4 K + 0.6]); ax.YTick = -2:2:6;
+    for k = 1:K                                  % off-scale points: triangle at the axis edge + value
         for vv = groups{k}(groups{k} < yl0)'
             scatter(ax, k + 0.12, yl0 + 0.25, 14, cols(k, :), 'v', 'filled', 'MarkerEdgeColor', S.c.ink, 'LineWidth', 0.3);
             text(ax, k + 0.25, yl0 + 0.25, sprintf('%s%.1f', mi, abs(vv)), 'FontName', S.font, ...
@@ -194,7 +198,7 @@ for v = 1:2
     tupilCatLabels(ax, labels, ns, 'FontSize', S.fsAnnot);
 end
 figText(fig, 0.5, 0.18, 'eGFR slope (mL/min/1.73 m^2/yr)', S);
-tupilExport(fig, fullfile(D, 'egfr_best_model_box')); close(fig);
+tupilExport(fig, fullfile(D, [prefix '_box'])); close(fig);
 end
 
 function clinicalBox(D, grouping, S)
@@ -236,6 +240,11 @@ for m = 1:3
 end
 figText(fig, 0.5, 0.18, 'eGFR slope (mL/min/1.73 m^2/yr)', S);
 tupilExport(fig, fullfile(D, char("egfr_clinical_markers_" + grouping))); close(fig);
+end
+
+function labels = slopeLabels3()
+mi = char(8722); ge = char(8805);
+labels = {[ge ' ' mi '1'], [mi '3 to ' mi '1'], ['< ' mi '3']};
 end
 
 function labels = slopeLabels4()

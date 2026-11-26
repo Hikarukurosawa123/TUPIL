@@ -7,6 +7,7 @@ import ipaddress
 import json
 import os
 from pathlib import Path
+from datetime import datetime, timezone
 from queue import Empty, Queue
 import re
 import secrets
@@ -37,8 +38,13 @@ STATIC = {
     "/notebook.js": ("notebook.js", "text/javascript; charset=utf-8"),
     "/notebook.css": ("notebook.css", "text/css; charset=utf-8"),
     "/markdown.js": ("markdown.js", "text/javascript; charset=utf-8"),
+    "/anchors.js": ("anchors.js", "text/javascript; charset=utf-8"),
 }
-PAGE_IDS = {"results-1", "results-2", "project-1", "project-2"}
+PAGE_TITLES = {"results-1": "Results 1", "results-2": "Results 2", "project-1": "Project 1", "project-2": "Project 2"}
+PAGE_SECTIONS = ("results", "notebook")
+INITIAL_NAVIGATION = (("results-1", "results", 0), ("results-2", "results", 1),
+                      ("project-1", "notebook", 0), ("project-2", "notebook", 1))
+BLOCK_ID = re.compile(r"(?:block-[a-f0-9]{32}|legacy-\d{1,3})", re.ASCII)
 CLOUDFLARE_URL = re.compile(r"https://[a-z0-9-]+\.trycloudflare\.com\b")
 PINGGY_URL = re.compile(r"https://[a-z0-9-]+\.run\.pinggy-free\.link\b")
 PINGGY_ID = re.compile(r"Tunnel started \(ID: ([a-f0-9-]+)\)")
@@ -72,6 +78,21 @@ class ReviewServer(ThreadingHTTPServer):
             db.execute("""CREATE TABLE IF NOT EXISTS notebook_pages (
                 page TEXT PRIMARY KEY, revision INTEGER NOT NULL, blocks TEXT NOT NULL
             )""")
+            db.execute("CREATE TABLE IF NOT EXISTS notebook_titles (page TEXT PRIMARY KEY, title TEXT NOT NULL)")
+            db.execute("""CREATE TABLE IF NOT EXISTS notebook_navigation (
+                page TEXT PRIMARY KEY, section TEXT NOT NULL, position INTEGER NOT NULL
+            )""")
+            db.executemany("INSERT OR IGNORE INTO notebook_navigation VALUES (?, ?, ?)", INITIAL_NAVIGATION)
+            db.execute("CREATE TABLE IF NOT EXISTS notebook_trash (page TEXT PRIMARY KEY)")
+            db.execute("""CREATE TABLE IF NOT EXISTS notebook_comments (
+                id INTEGER PRIMARY KEY, page TEXT NOT NULL, author TEXT NOT NULL,
+                text TEXT NOT NULL, created TEXT NOT NULL
+            )""")
+            db.execute("CREATE INDEX IF NOT EXISTS notebook_comments_page ON notebook_comments (page, id)")
+            db.execute("""CREATE TABLE IF NOT EXISTS notebook_comment_anchors (
+                id INTEGER PRIMARY KEY, block TEXT NOT NULL, mode TEXT NOT NULL,
+                offset INTEGER NOT NULL, quote TEXT NOT NULL
+            )""")
         super().__init__(("0.0.0.0" if args.share else "127.0.0.1", args.port), Handler)
 
     def server_bind(self):
@@ -104,6 +125,10 @@ class ClosingConnection(sqlite3.Connection):
             return super().__exit__(*args)
         finally:
             self.close()
+
+
+class PageUnavailable(Exception):
+    pass
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -204,6 +229,21 @@ class Handler(BaseHTTPRequestHandler):
                 if self.command == "POST":
                     return self.save_page(body)
                 return self.get_page(query.get("page", [""])[0])
+            if url.path == "/api/notebook/title" and self.command == "POST":
+                return self.rename_page(body)
+            if url.path == "/api/notebook/pages":
+                if self.command == "POST":
+                    return self.create_page(body)
+                with self.server.database() as db:
+                    return self.json(self.page_index(db))
+            if url.path == "/api/notebook/trash" and self.command == "POST":
+                return self.trash_page(body)
+            if url.path == "/api/notebook/move" and self.command == "POST":
+                return self.move_page(body)
+            if url.path == "/api/notebook/comments":
+                if self.command == "POST":
+                    return self.post_comment(body)
+                return self.get_comments(query.get("page", [""])[0])
             if self.command == "GET":
                 key = query.get("figure", [""])[0]
                 if url.path == "/api/figures":
@@ -225,6 +265,8 @@ class Handler(BaseHTTPRequestHandler):
             self.json({"error": "Page not found."}, HTTPStatus.NOT_FOUND)
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
             return
+        except PageUnavailable as exc:
+            self.json({"error": str(exc)}, HTTPStatus.NOT_FOUND)
         except FileNotFoundError:
             self.json({"error": "The figure or folder is unavailable."}, HTTPStatus.NOT_FOUND)
         except ValueError as exc:
@@ -252,27 +294,175 @@ class Handler(BaseHTTPRequestHandler):
         self.json({"figures": figures})
 
     def get_page(self, page):
-        if page not in PAGE_IDS:
-            raise ValueError("Choose a notebook page.")
         with self.server.database() as db:
+            self.require_page(db, page)
             row = db.execute("SELECT revision, blocks FROM notebook_pages WHERE page = ?", (page,)).fetchone()
-        revision, blocks = (row[0], json.loads(row[1])) if row else (0, [])
-        self.json({"revision": revision, "blocks": blocks})
+            index = self.page_index(db)
+        revision, blocks = (row[0], self.blocks_with_ids(row[1])) if row else (0, [])
+        self.json({"revision": revision, "blocks": blocks, **index,
+                   "titles": {item["id"]: item["title"] for item in index["pages"]}})
+
+    @staticmethod
+    def require_page(db, page):
+        if not isinstance(page, str) or not db.execute("""SELECT 1 FROM notebook_navigation AS n
+                WHERE n.page = ? AND NOT EXISTS (SELECT 1 FROM notebook_trash AS t WHERE t.page = n.page)""", (page,)).fetchone():
+            raise PageUnavailable("The page is unavailable or in Trash.")
+
+    @staticmethod
+    def page_index(db):
+        rows = db.execute("""SELECT n.page, n.section, t.title, trash.page IS NOT NULL
+                             FROM notebook_navigation AS n
+                             LEFT JOIN notebook_titles AS t ON t.page = n.page
+                             LEFT JOIN notebook_trash AS trash ON trash.page = n.page
+                             ORDER BY n.section, n.position, n.page""")
+        result = {"pages": [], "trash": []}
+        for page, section, title, trashed in rows:
+            result["trash" if trashed else "pages"].append({"id": page, "section": section,
+                "title": title or PAGE_TITLES.get(page, "Untitled page")})
+        return result
+
+    @staticmethod
+    def blocks_with_ids(serialized):
+        return [dict(block, id=block.get("id", f"legacy-{index}")) for index, block in enumerate(json.loads(serialized))]
+
+    @staticmethod
+    def clean_title(title):
+        if not isinstance(title, str) or not 1 <= len(title.strip()) <= 120 or len(title.splitlines()) != 1:
+            raise ValueError("Enter a page title between 1 and 120 characters on one line.")
+        return title.strip()
+
+    def create_page(self, body):
+        section = body.get("section")
+        if section not in PAGE_SECTIONS:
+            raise ValueError("Choose a section for the new page.")
+        title = self.clean_title(body.get("title"))
+        page = f"page-{secrets.token_hex(12)}"
+        with self.server.database() as db:
+            db.execute("BEGIN IMMEDIATE")
+            position = db.execute("SELECT COALESCE(MAX(position) + 1, 0) FROM notebook_navigation WHERE section = ?",
+                                  (section,)).fetchone()[0]
+            db.execute("INSERT INTO notebook_navigation VALUES (?, ?, ?)", (page, section, position))
+            db.execute("INSERT INTO notebook_titles VALUES (?, ?)", (page, title))
+            index = self.page_index(db)
+        self.json({"id": page, **index}, HTTPStatus.CREATED)
+
+    def move_page(self, body):
+        page, section, after = body.get("page"), body.get("section"), body.get("after")
+        if section not in PAGE_SECTIONS or (after is not None and not isinstance(after, str)):
+            raise ValueError("Choose a section and position for the page.")
+        with self.server.database() as db:
+            db.execute("BEGIN IMMEDIATE")
+            self.require_page(db, page)
+            order = [row[0] for row in db.execute("""SELECT n.page FROM notebook_navigation AS n
+                      WHERE n.section = ? AND n.page <> ? AND NOT EXISTS (SELECT 1 FROM notebook_trash AS t WHERE t.page = n.page)
+                      ORDER BY n.position, n.page""", (section, page))]
+            if after is not None and after not in order:
+                raise ValueError("That position changed. Reopen the move form and try again.")
+            position = 0 if after is None else order.index(after) + 1
+            order.insert(position, page)
+            db.executemany("UPDATE notebook_navigation SET section = ?, position = ? WHERE page = ?",
+                           ((section, index, item) for index, item in enumerate(order)))
+            index = self.page_index(db)
+        self.json(index)
+
+    def trash_page(self, body):
+        page, action = body.get("page"), body.get("action")
+        if not isinstance(page, str) or action not in ("delete", "restore"):
+            raise ValueError("Choose a page and a valid Trash action.")
+        with self.server.database() as db:
+            db.execute("BEGIN IMMEDIATE")
+            if action == "delete":
+                self.require_page(db, page)
+                db.execute("INSERT INTO notebook_trash VALUES (?)", (page,))
+            else:
+                restored = db.execute("DELETE FROM notebook_trash WHERE page = ?", (page,))
+                if not restored.rowcount:
+                    raise PageUnavailable("The page is no longer in Trash.")
+                db.execute("""UPDATE notebook_navigation SET position = (
+                              SELECT COALESCE(MAX(peer.position) + 1, 0) FROM notebook_navigation AS peer
+                              WHERE peer.section = notebook_navigation.section
+                            ) WHERE page = ?""", (page,))
+            index = self.page_index(db)
+        self.json(index)
+
+    def rename_page(self, body):
+        page, title = body.get("page"), self.clean_title(body.get("title"))
+        with self.server.database() as db:
+            db.execute("BEGIN IMMEDIATE")
+            self.require_page(db, page)
+            db.execute("""INSERT INTO notebook_titles (page, title) VALUES (?, ?)
+                          ON CONFLICT(page) DO UPDATE SET title = excluded.title""", (page, title))
+        self.json({"title": title})
+
+    def get_comments(self, page):
+        with self.server.database() as db:
+            self.require_page(db, page)
+            db.row_factory = sqlite3.Row
+            rows = db.execute("""SELECT c.id, c.author, c.text, c.created, a.block, a.mode, a.offset, a.quote
+                FROM notebook_comments AS c LEFT JOIN notebook_comment_anchors AS a ON a.id = c.id
+                WHERE c.page = ? ORDER BY c.id DESC""", (page,))
+            comments = []
+            for row in rows:
+                comment = {key: row[key] for key in ("id", "author", "text", "created")}
+                if row["block"] is not None:
+                    comment["anchor"] = {key: row[key] for key in ("block", "mode", "offset", "quote")}
+                comments.append(comment)
+        self.json({"comments": comments})
+
+    def validate_anchor(self, db, page, anchor):
+        if not isinstance(anchor, dict):
+            raise ValueError("Select some document text before commenting.")
+        block, mode, offset, quote = (anchor.get(key) for key in ("block", "mode", "offset", "quote"))
+        if (not isinstance(block, str) or not BLOCK_ID.fullmatch(block) or mode not in ("source", "preview")
+                or type(offset) is not int or not 0 <= offset <= 40_000
+                or not isinstance(quote, str) or not quote.strip() or len(quote) > 2_000):
+            raise ValueError("Select up to 2,000 characters in one text block.")
+        row = db.execute("SELECT blocks FROM notebook_pages WHERE page = ?", (page,)).fetchone()
+        target = next((item for item in self.blocks_with_ids(row[0]) if item["id"] == block), None) if row else None
+        if target is None or (mode == "source" and quote not in target["markdown"].replace("\r\n", "\n").replace("\r", "\n")):
+            raise ValueError("The selected text has changed. Select it again before posting.")
+        return {"block": block, "mode": mode, "offset": offset, "quote": quote}
+
+    def post_comment(self, body):
+        page, author, comment = body.get("page"), body.get("author", ""), body.get("text")
+        if not isinstance(author, str) or len(author.strip()) > 80 or len(author.splitlines()) > 1:
+            raise ValueError("Enter a name of up to 80 characters on one line.")
+        if not isinstance(comment, str) or not 1 <= len(comment.strip()) <= 4_000:
+            raise ValueError("Enter a comment between 1 and 4,000 characters.")
+        author, comment = author.strip() or "Reviewer", comment.strip()
+        created = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        with self.server.database() as db:
+            db.execute("BEGIN IMMEDIATE")
+            self.require_page(db, page)
+            anchor = self.validate_anchor(db, page, body["anchor"]) if body.get("anchor") is not None else None
+            row = db.execute("INSERT INTO notebook_comments (page, author, text, created) VALUES (?, ?, ?, ?)",
+                             (page, author, comment, created))
+            comment = {"id": row.lastrowid, "author": author, "text": comment, "created": created}
+            if anchor is not None:
+                db.execute("INSERT INTO notebook_comment_anchors VALUES (?, ?, ?, ?, ?)",
+                           (row.lastrowid, anchor["block"], anchor["mode"], anchor["offset"], anchor["quote"]))
+                comment["anchor"] = anchor
+        self.json({"comment": comment}, HTTPStatus.CREATED)
 
     def save_page(self, body):
         page, revision, blocks = body.get("page"), body.get("revision"), body.get("blocks")
-        if (not isinstance(page, str) or page not in PAGE_IDS or type(revision) is not int
+        if (type(revision) is not int
                 or not 0 <= revision < 2**63 - 1 or not isinstance(blocks, list) or len(blocks) > 200):
             raise ValueError("Invalid notebook page. A page can hold up to 200 blocks.")
         cleaned = []
-        for block in blocks:
+        seen = set()
+        for index, block in enumerate(blocks):
             if not isinstance(block, dict) or block.get("kind") not in ("text", "figure"):
                 raise ValueError("Invalid notebook block.")
             kind = block["kind"]
+            block_id = block.get("id", f"legacy-{index}")
+            if not isinstance(block_id, str) or not BLOCK_ID.fullmatch(block_id) or block_id in seen:
+                raise ValueError("Invalid or duplicate notebook block ID.")
+            seen.add(block_id)
             markdown = block.get("markdown")
             if not isinstance(markdown, str) or len(markdown) > 20_000:
                 raise ValueError("A text block can hold up to 20,000 characters.")
-            item = {"kind": kind, "markdown": markdown}
+            item = {"id": block_id, "kind": kind, "markdown": markdown}
             if kind == "figure":
                 figure, layout = block.get("figure"), block.get("layout")
                 if not isinstance(figure, str) or not 1 <= len(figure) <= 4096 or layout not in ("full", "left", "right"):
@@ -284,6 +474,8 @@ class Handler(BaseHTTPRequestHandler):
             cleaned.append(item)
         serialized = json.dumps(cleaned, ensure_ascii=True)
         with self.server.database() as db:
+            db.execute("BEGIN IMMEDIATE")
+            self.require_page(db, page)
             if revision == 0:
                 result = db.execute("INSERT OR IGNORE INTO notebook_pages VALUES (?, 1, ?)", (page, serialized))
             else:

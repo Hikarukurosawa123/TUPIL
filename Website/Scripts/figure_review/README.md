@@ -14,11 +14,15 @@ Open [http://127.0.0.1:8765](http://127.0.0.1:8765). Keep the PowerShell window 
 
 ## Write a results or project page
 
-- **Results** contains **Results 1** and **Results 2**. **Research Notebook** contains **Project 1** and **Project 2**. Click a page in the navigation to open it.
+- Click **Rename** beside a page title to change its heading and sidebar label. Its link stays the same.
+- Click **New page** under **Results** or **Research Notebook**, enter a title, and click **Create page**. Select any page from the sidebar to open it.
+- Click **Move page** to choose a section and position. Moving a page carries its title, notes, figures, comments, and link with it.
+- Click **Delete page** to move the current page to **Trash**. Use **Restore** in the sidebar to bring back its contents, comments, and link.
 - Drag a figure from **Drive figures** onto a dashed line in the document, or click **Insert**. Drag the figure's **Drag to move** handle to reposition it. **Move up** and **Move down** work with a keyboard or touch screen.
 - Use **Add text** to write above, between, or below figures. Choose **Figure left** or **Figure right** to write beside a figure. **Text below** stacks a figure and its accompanying text.
-- Write Markdown in any text field and use **Preview Markdown** to see the formatted page. The preview supports headings, bold, italic, lists, quotes, code, links, and horizontal rules.
+- Write Markdown in any text field and click **View** to see the clean, formatted page. View mode hides all editing controls: the drop lines and **Add text**, block tools, the Drive figures panel, the page buttons, figure file names, and empty text blocks. Comments still work in View mode. Click **Edit** to return to editing. Markdown supports headings, bold, italic, lists, quotes, code, links, and horizontal rules.
 - Pages save automatically to the host's SQLite database. A figure block links to the file in Drive, so moving or renaming that file can break the link. If two reviewers edit the same page at once, the second save displays a conflict so they can copy their changes before reloading.
+- Highlight text in one block in the editor or Markdown preview and choose **Comment on selection**. Add your feedback and, optionally, your name. **Show selection** in a posted comment jumps back to the passage. The original quote stays with the comment if the passage is later edited or removed. Use **Refresh comments** to see new feedback from other reviewers.
 
 ## Place and edit figure annotations
 

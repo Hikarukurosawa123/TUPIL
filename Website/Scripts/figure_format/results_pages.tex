@@ -1,0 +1,234 @@
+% TUPIL results write-up.
+%
+% Each \section{...} becomes one page under "Results" on the figure review
+% website. publish_results.py reads this file, copies every PNG referenced by
+% \includegraphics from Results_Main into the website's Drive folder, and
+% writes the pages. Edit this file and rerun the script to update the pages.
+%
+% Supported by the website converter: \section, \subsection, \subsubsection,
+% \paragraph, \textbf, \emph, \textit, itemize/enumerate, figure environments
+% with \includegraphics + \caption, and inline math ($...$) using common
+% symbols (\kappa, \rho, \geq, \leq, \times, \pm, ^{...}). Figures must be .png.
+%
+% The file also compiles as a normal LaTeX document (pdflatex) when
+% \graphicspath points at Results_Main.
+
+\documentclass[11pt]{article}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage[hidelinks]{hyperref}
+\graphicspath{{//Tupil/tupil data/Hikaru/TUPIL/Results_Main/}}
+
+\title{TUPIL Results Summary}
+\date{}
+
+\begin{document}
+\maketitle
+
+% ---------------------------------------------------------------------------
+\section{ci score classification using QUS radiomics}
+
+\subsection{Intensity + textural features (original)}
+
+\paragraph{Approach}
+All 63 combinations of the six QUS parameters (SI, H-scan, MBF, ESD, EAC, SS) were tested.
+Each combination was paired with eight feature-selection strategies: the top 1, 3, or 5 features per parameter, the top 1, 3, or 5 features overall, LASSO, and ridge.
+Performance was evaluated with Spearman $\rho$ against biopsy ci, quadratic weighted $\kappa$, and AUC for ci 0 vs ci 1--2 (with and without the HD group).
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{02_Rscore_all_combinations/rscore_all_combinations_heatmap_rho_kappa.png}
+\caption{Spearman $\rho$ (left) and quadratic weighted $\kappa$ (right) for every QUS parameter combination (rows) and feature-selection strategy (columns). The boxed cell marks the best value in each panel.}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{02_Rscore_all_combinations/rscore_all_combinations_heatmap_auc.png}
+\caption{AUC for ci 0 vs ci 1--2 (left) and ci 0 vs ci 1--2 + HD (right) for the same grid.}
+\end{figure}
+
+\paragraph{Takeaway}
+\begin{itemize}
+\item Fewer features in the final model input generalized better; about three features gave the best predictive performance.
+\item Models containing SI consistently performed best, and adding SS or H-scan gave a further boost.
+\item Final model: \textbf{SI + H-scan, top 3 features overall, intensity + textural features}.
+\end{itemize}
+
+\subsubsection{Final model: SI + H-scan, top 3 overall}
+
+The final model is a proportional-odds ordinal logistic regression on the whole kidney minus pelvis, using all images, validated with 10 $\times$ 5-fold cross-validation.
+Its held-out R-score increased with biopsy ci (Spearman $\rho$ = 0.70, p = $3.3 \times 10^{-27}$; C-index = 0.88).
+Every pairwise group comparison was significant except ci 1 vs ci 2 (Tukey--Kramer).
+Ordinal classification from the R-score agreed with biopsy ci with quadratic weighted $\kappa$ = 0.78 (95\% CI 0.69--0.85, p = $2.5 \times 10^{-25}$; exact accuracy 74\%, n = 174).
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.6\linewidth]{01_Rscore/rscore_heldout_by_ci_box.png}
+\caption{Held-out proportional-odds R-score by biopsy ci group (ci 0, n = 106; ci 1, n = 33; ci 2, n = 11; HD, n = 24). Pairwise p-values: Tukey--Kramer; pairs without a bracket are ns.}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.6\linewidth]{01_Rscore/rscore_weighted_kappa_confusion.png}
+\caption{Confusion matrix of predicted vs biopsy ci from the same proportional-odds model (10 $\times$ 5-fold cross-validation). Most errors fall in adjacent classes; no case was predicted as ci 2.}
+\end{figure}
+
+% ---------------------------------------------------------------------------
+\section{eGFR slope prediction using QUS radiomics}
+
+The same all-combinations search was repeated with eGFR slope (mL/min/1.73 m$^2$/yr) as the outcome.
+Models were scored by C-index and by AUC for slopes below $-1$, $-3$, and $-5$.
+Performance was much less consistent than for ci: many combinations fell below 0.5.
+Combinations containing SS (often with ESD) performed best.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{03_eGFR_slope/egfr_all_combinations_heatmap_cindex_auc1.png}
+\caption{C-index (left) and AUC for slope $< -1$ (right) across QUS parameter combinations and feature-selection strategies.}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{03_eGFR_slope/egfr_all_combinations_heatmap_auc3_auc5.png}
+\caption{AUC for slope $< -3$ and slope $< -5$ for the same grid.}
+\end{figure}
+
+The best model (H-scan + ESD + SS, top 1 per parameter) reached C-index = 0.74 and Spearman $\rho$ = $-$0.41 against slope (p = $4.7 \times 10^{-5}$, n = 91).
+
+\paragraph{Performance at each slope cut-off (ordinal model)}
+The best model is a single proportional-odds ordinal logistic regression across the four slope groups (leave-one-out cross-validation). Its held-out score separated patients at every cut-off; no separate binary models were fit:
+\begin{itemize}
+\item Slope $< -1$ (n = 34 vs 57): AUC = 0.75
+\item Slope $< -3$ (n = 18 vs 73): AUC = 0.78
+\item Slope $< -5$ (n = 10 vs 81): AUC = 0.77
+\end{itemize}
+
+Adding ACR to the model did not improve performance (C-index = 0.71).
+
+\textbf{Note:} on this page, pairwise p-values are unadjusted Welch t-tests (no multiple-comparison adjustment). Pairs without a bracket are not significant (ns).
+
+The held-out R-score was higher in faster-declining groups.
+With radiomics only, the ${\geq} -1$ group differed from each faster-declining group (vs $-3$ to $-1$, p = 0.030; vs $-5$ to $-3$, p = 0.027; vs ${<} -5$, p = 0.0084).
+With radiomics + ACR, ${\geq} -1$ differed from $-3$ to $-1$ (p = 0.041) and from ${<} -5$ (p = 0.0084).
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{03_eGFR_slope/egfr_best_model_box.png}
+\caption{Held-out proportional-odds R-score of the best model by eGFR slope group, radiomics only (left) and radiomics + ACR (right).}
+\end{figure}
+
+For comparison, the clinical markers ACR, baseline eGFR, and 2-year KFRE risk were weak.
+No marker differed in the binary groupings ($-1$, $-3$, $-5$ cut-offs; all p $>$ 0.05), and the overall four-group test was not significant for any marker.
+In the four-group plot, unadjusted pairwise tests showed lower baseline eGFR in the $-5$ to $-3$ group than in ${\geq} -1$ (p = 0.018) and $-3$ to $-1$ (p = 0.049), and higher KFRE risk in $-5$ to $-3$ than in ${\geq} -1$ (p = 0.050).
+ACR did not differ between any groups.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{03_eGFR_slope/egfr_clinical_markers_ordinal4.png}
+\caption{ACR, eGFR, and KFRE 2-year risk across the four eGFR slope groups.}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{03_eGFR_slope/egfr_clinical_markers_binary_lt1.png}
+\caption{Clinical markers, slope ${\geq} -1$ vs ${<} -1$.}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{03_eGFR_slope/egfr_clinical_markers_binary_lt3.png}
+\caption{Clinical markers, slope ${\geq} -3$ vs ${<} -3$.}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{03_eGFR_slope/egfr_clinical_markers_binary_lt5.png}
+\caption{Clinical markers, slope ${\geq} -5$ vs ${<} -5$.}
+\end{figure}
+
+% ---------------------------------------------------------------------------
+\section{ci spatial analysis: early vs late (median gap)}
+
+Scans were split at the median imaging-to-biopsy gap into early (0--43 d, n = 50) and late (45--144 d, n = 50) halves.
+AUC for ci 0 vs ci 1--2 was computed on all images, on the third of the kidney matching the biopsy site (matched third), and on the opposite third.
+p-values are one-sided DeLong tests (paired between regions, unpaired between time windows).
+\textbf{Note:} any comparison in the figures without a p-value bracket is not significant (ns).
+Comparing early with late on all images was not significant for either model (frozen 0.89 vs 0.78, p = 0.10; retrained 0.85 vs 0.73, p = 0.12).
+
+\subsection{Frozen model}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.7\linewidth]{04_ci_spatial_median_gap/auc_by_roi_early_late_frozen.png}
+\caption{Frozen final model applied to each region and time window. Only significant comparisons are bracketed.}
+\end{figure}
+
+\paragraph{Result 1}
+The frozen model generalizes even when only the non-matched region is analyzed: AUC in the opposite third was 0.82 (early) and 0.76 (late), not significantly different from the matched third or from all images.
+
+\paragraph{Result 2}
+Matched early (AUC 0.85) was significantly higher than matched late (AUC 0.64; p = 0.043).
+
+\subsection{Retrained model}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.7\linewidth]{04_ci_spatial_median_gap/auc_by_roi_early_late.png}
+\caption{Model retrained on each region.}
+\end{figure}
+
+\paragraph{Result 3}
+When retrained, matched early (AUC 0.89) was significantly higher than both opposite early (AUC 0.75; p = 0.023) and matched late (AUC 0.68; p = 0.027).
+
+% ---------------------------------------------------------------------------
+\section{ci spatial analysis: imaging-to-biopsy time windows}
+
+The same regional analysis was repeated with finer time windows, defined two ways: non-overlapping intervals (same day, $>$0--1, $>$1--3, $>$3--5 months) and cumulative windows (0--1, 0--3, 0--5 months).
+Brackets on the figures mark p $<$ 0.05, including comparisons between time windows on all images.
+\textbf{Note:} any comparison in the figures without a p-value bracket is not significant (ns).
+Interval windows and region pairs use one-sided DeLong tests.
+Cumulative windows share patients, so all images are compared across them with a one-sided patient bootstrap, and matched or opposite thirds are not compared across cumulative windows.
+
+\subsection{Interval windows}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.7\linewidth]{05_ci_spatial_time_windows/auc_by_roi_interval_frozen.png}
+\caption{Frozen model by interval window. Same day n = 20, $>$0--1 mo n = 27, $>$1--3 mo n = 28, $>$3--5 mo n = 25.}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.7\linewidth]{05_ci_spatial_time_windows/auc_by_roi_interval.png}
+\caption{Retrained model by interval window.}
+\end{figure}
+
+\begin{itemize}
+\item Frozen model: AUC was at least 0.79 in every region up to 1 month after biopsy and dropped in the $>$3--5 month window (all images 0.68, matched 0.63, opposite 0.60). On all images, no difference between windows was significant (closest: $>$0--1 vs $>$3--5 months, 0.92 vs 0.68, p = 0.051).
+\item Retrained model: on all images, same day (AUC 0.74) was significantly higher than $>$3--5 months (AUC 0.37; p = 0.034).
+\item Retrained model: the matched third was strongest on the same day (AUC 0.85) and significantly lower at $>$3--5 months (AUC 0.44; p = 0.0086).
+\item The intervals are small (n = 20--28, 4--9 ci 1--2 cases each), so the confidence intervals are wide.
+\end{itemize}
+
+\subsection{Cumulative windows}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.7\linewidth]{05_ci_spatial_time_windows/auc_by_roi_cumulative_frozen.png}
+\caption{Frozen model by cumulative window. 0--1 mo n = 47, 0--3 mo n = 75, 0--5 mo n = 100.}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.7\linewidth]{05_ci_spatial_time_windows/auc_by_roi_cumulative.png}
+\caption{Retrained model by cumulative window.}
+\end{figure}
+
+\begin{itemize}
+\item Frozen model: AUC decreased steadily as later scans were added (all images 0.91 $\to$ 0.88 $\to$ 0.84), and 0--1 vs 0--5 months on all images was significant (p = 0.023, patient bootstrap). The opposite third stayed between 0.80 and 0.86.
+\item Retrained model: on all images, no difference between cumulative windows was significant (0.87, 0.86, 0.82).
+\item Retrained model: within 1 month, the matched third (AUC 0.91) was significantly higher than the opposite third (AUC 0.78; p = 0.031).
+\end{itemize}
+
+\end{document}

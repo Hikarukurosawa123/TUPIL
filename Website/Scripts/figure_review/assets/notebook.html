@@ -25,28 +25,69 @@
     </section>
     <div id="workspace" class="notebook-workspace" hidden>
       <nav class="pages" aria-label="Research pages">
-        <details open>
+        <details data-section="results" open>
           <summary>Results</summary>
-          <button class="page-link" data-page="results-1">Results 1</button>
-          <button class="page-link" data-page="results-2">Results 2</button>
+          <div class="page-links"></div>
+          <button class="button new-page" type="button" aria-label="New page in Results">New page</button>
         </details>
-        <details open>
+        <details data-section="notebook" open>
           <summary>Research Notebook</summary>
-          <button class="page-link" data-page="project-1">Project 1</button>
-          <button class="page-link" data-page="project-2">Project 2</button>
+          <div class="page-links"></div>
+          <button class="button new-page" type="button" aria-label="New page in Research Notebook">New page</button>
+        </details>
+        <form id="create-page-form" class="page-form" hidden>
+          <label id="create-page-label" for="new-page-title">New page title</label>
+          <input id="new-page-title" maxlength="120" required>
+          <div class="actions"><button class="button primary">Create page</button><button id="create-page-cancel" class="button" type="button">Cancel</button></div>
+          <p class="error" id="create-page-status" role="status"></p>
+        </form>
+        <details id="trash" hidden>
+          <summary>Trash</summary>
+          <ul id="trash-pages" class="trash-pages"></ul>
         </details>
       </nav>
       <section class="document-area" aria-labelledby="page-title">
         <div class="document-toolbar">
-          <div><p id="page-group" class="muted"></p><h2 id="page-title">Loading page</h2></div>
-          <div class="actions"><button id="preview" class="button" aria-pressed="false" disabled>Preview Markdown</button><button id="save" class="button primary" disabled>Save</button></div>
+          <div class="document-heading">
+            <p id="page-group" class="muted"></p>
+            <div class="page-title-row"><h2 id="page-title">Loading page</h2><button id="rename" class="button" hidden>Rename</button><button id="move-page" class="button" hidden>Move page</button><button id="delete-page" class="button danger" hidden>Delete page</button></div>
+          </div>
+          <div class="actions"><button id="comments-jump" class="button" disabled>Comments</button><button id="preview" class="button" aria-pressed="false" disabled>View</button><button id="save" class="button primary" disabled>Save</button></div>
         </div>
+        <form id="rename-form" class="rename-form" hidden>
+          <label for="title-input">Page title</label>
+          <input id="title-input" maxlength="120" required>
+          <div class="actions"><button id="rename-save" class="button primary">Save title</button><button id="rename-cancel" class="button" type="button">Cancel</button></div>
+          <p id="rename-status" class="error" role="status"></p>
+        </form>
+        <form id="move-page-form" class="page-form move-page-form" hidden>
+          <div class="move-page-fields">
+            <div><label for="move-section">Section</label><select id="move-section"><option value="results">Results</option><option value="notebook">Research Notebook</option></select></div>
+            <div><label for="move-position">Position</label><select id="move-position"></select></div>
+          </div>
+          <div class="actions"><button class="button primary">Move page</button><button id="move-page-cancel" class="button" type="button">Cancel</button></div>
+          <p id="move-page-status" class="error" role="status"></p>
+        </form>
         <div class="document-feedback"><p id="save-status" class="muted" role="status"></p><button id="reload" class="button" hidden>Reload page</button></div>
+        <div id="selection-tools" class="selection-tools" hidden><button id="comment-selection" class="button primary" type="button">Comment on selection</button></div>
         <article class="paper" id="paper" aria-label="Document"></article>
         <details class="markdown-help">
           <summary>Markdown examples</summary>
           <p><code># Heading</code>, <code>**bold**</code>, <code>*italic*</code>, <code>- List item</code>, <code> &gt; Quote</code>, <code>`code`</code>, <code>[Link](https://example.com)</code></p>
         </details>
+        <section id="page-comments" class="page-comments" aria-labelledby="comments-title" hidden>
+          <div class="comments-header"><h2 id="comments-title">Page comments</h2><button id="comments-refresh" class="button">Refresh comments</button></div>
+          <p id="comment-help" class="muted">Select text in a block to comment on it.</p>
+          <form id="comment-form" class="comment-form" hidden>
+            <blockquote id="comment-quote" class="comment-quote"></blockquote>
+            <div><label for="comment-author">Name (optional)</label><input id="comment-author" maxlength="80" autocomplete="name"></div>
+            <div><label for="comment-text">Comment</label><textarea id="comment-text" rows="3" maxlength="4000" required></textarea></div>
+            <div class="actions"><button id="comment-post" class="button primary">Post comment</button><button id="comment-cancel" class="button" type="button">Cancel</button></div>
+          </form>
+          <p id="comment-status" class="muted" role="status"></p>
+          <p id="comments-empty" class="muted" hidden>No comments yet.</p>
+          <ol id="comments-list" class="comments-list"></ol>
+        </section>
       </section>
       <aside class="drive-library" aria-labelledby="library-title">
         <div class="library-heading"><h2 id="library-title">Drive figures</h2><button id="refresh" class="button">Refresh</button></div>
